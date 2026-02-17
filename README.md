@@ -1,77 +1,273 @@
-# AI Product Draft App
+# Product Attention Insights
 
-A Shopify embedded app that provides **Product Attention Insights** — AI-generated advisory recommendations for products that may need attention (e.g. stale descriptions, pricing, imagery). **Advisory only**: no product data is written back to Shopify.
+Embedded Shopify Admin app that helps store owners identify which products need attention.
 
-## What it does
+Built with the official Shopify App template using React Router, Polaris, Prisma, Admin GraphQL, background jobs, and structured AI integration.
 
-- **Insights page** (`/app/insights`): Lists products by “days since updated,” computes attention score and status (recently updated / healthy / neglected), and lets you generate AI explanations per product or in batch.
-- **Runs page** (`/app/runs`): Lists recent batch runs and per-product job outcomes (queued, running, succeeded, failed).
-- **Worker**: Background process that polls for queued AI jobs, calls OpenAI, and writes results to `ProductInsight`. Supports retries with backoff (up to 3 attempts).
-- **Webhooks**: `app/uninstalled` with idempotency (ignores duplicates by `X-Shopify-Webhook-Id`) and full shop data cleanup.
+---
 
-## How to run locally
+## The Problem
 
-### Prerequisites
+Store owners often don’t know which products need review.
 
-- Node.js 20.19+ or 22.12+
-- [Shopify CLI](https://shopify.dev/docs/apps/tools/cli/getting-started)
-- OpenAI API key
+Products can quietly become:
 
-### Setup
+* Out of stock
+* Left in draft
+* Hidden unintentionally
+* Not updated in months
+* Poorly merchandised
 
-1. Copy `.env.example` to `.env`.
-2. Run `shopify app dev` — this sets `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SCOPES`, and `SHOPIFY_APP_URL` automatically.
-3. Add `OPENAI_API_KEY` to `.env` (get from [platform.openai.com/api-keys](https://platform.openai.com/api-keys)).
-4. Run migrations: `npm run db:migrate` (or `npm run setup` for generate + migrate).
+Most stores lack a lightweight operational dashboard to surface these signals.
 
-### Run the app and worker
+---
 
-1. **App**: `npm run dev` (or `shopify app dev`) — starts the app with tunnel.
-2. **Worker** (separate terminal): `npm run worker` — polls for queued jobs and processes them.
+## The Solution
 
-Both processes share the same `.env` and SQLite database.
+Product Attention Insights is an embedded Shopify Admin app that:
 
-## Architecture overview
+* Fetches products via Shopify Admin GraphQL
+* Computes operational “attention signals” (e.g. days since updated, inventory state, status)
+* Assigns a severity level (Low / Medium / High)
+* Generates structured AI explanations for why a product may need attention
+* Runs AI work asynchronously via a background job worker
+* Tracks job runs with status + retry handling
+* Verifies Shopify webhooks with HMAC and idempotency
+* Cleans up shop data securely on uninstall
 
-| Component | Role |
-|-----------|------|
-| **Auth** | Shopify OAuth via `@shopify/shopify-app-react-router`; sessions in Prisma/SQLite. |
-| **Loader** | `/app/insights` fetches products via Admin GraphQL, upserts `ProductInsight`, returns list. |
-| **Queue** | Single-product or batch actions enqueue `InsightJob` rows (status `QUEUED`). |
-| **Worker** | Polls for `QUEUED` jobs, claims with concurrency-safe `updateMany`, calls OpenAI, updates `ProductInsight` and `InsightJob`. |
-| **Webhooks** | `app/uninstalled` verified via HMAC; idempotent via `WebhookEvent`; deletes all shop data. |
+The app is advisory-only and does not modify product data.
 
-## Key decisions
+---
 
-- **Advisory only**: AI output is stored in `ProductInsight`; nothing is written to Shopify products.
-- **Per-product trigger**: Each “Generate AI insight” enqueues one job; batch “Generate AI for visible list” enqueues up to 10.
-- **Hard limits**: Batch size ≤ 10; AI prompt avoids product copy generation.
-- **Retries**: Up to 3 attempts with backoff (2s, 5s, 10s); `nextRetryAt` prevents immediate re-processing.
-- **Idempotency**: Webhook deduplication by `X-Shopify-Webhook-Id`; job claiming uses `updatedAt` for concurrency safety.
+## What This Project Demonstrates
 
-## Scripts
+This project is intentionally structured to showcase production-level Shopify app patterns.
 
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start app (shopify app dev) |
-| `npm run worker` | Run AI insight job worker |
-| `npm run db:migrate` | Apply Prisma migrations |
-| `npm run db:generate` | Regenerate Prisma client |
-| `npm run build` | Build for production |
-| `npm run start` | Run production server |
+### Shopify Platform
 
-## Verify end-to-end
+* OAuth authentication
+* Server-side session storage
+* Admin GraphQL integration
+* Embedded app using Polaris
+* Verified webhooks with HMAC validation
+* Idempotent webhook processing
 
-1. Run `npm run dev` and `npm run worker` in two terminals.
-2. Open the app in Shopify admin → Insights.
-3. Click “Generate AI insight” on a product (or “Generate AI for visible list”).
-4. Worker logs processing; refresh Insights to see AI output.
-5. Go to Runs → open a run to see per-product status.
-6. Uninstall the app → webhook fires; reinstall and confirm data was cleaned.
+### Architecture
 
-## What’s next (stretch ideas)
+* Prisma ORM with structured models
+* Async job queue with retry + backoff
+* Background worker process
+* Run-level observability
+* Separation of concerns:
 
-- Scheduled batch runs (cron).
-- Webhook for `products/update` to refresh `ProductInsight` when products change.
-- Rate limiting / queue depth limits.
-- Production database (PostgreSQL) and hosted worker (e.g. Fly.io, Railway).
+  * `/server/shopify`
+  * `/server/ai`
+  * `/server/jobs`
+  * `/server/webhooks`
+
+### AI Integration
+
+* Structured JSON contract (no freeform hallucinated output)
+* Strict prompt constraints
+* Limited safe input fields
+* Human-in-the-loop design (no auto-writes to Shopify)
+* Retry handling and error state persistence
+
+### Operational Maturity Signals
+
+* Background processing instead of blocking requests
+* Job state tracking (QUEUED → RUNNING → SUCCEEDED / FAILED)
+* Run-level summaries
+* Reversibility and non-destructive behavior
+* Clear UI status and confidence indicators
+
+---
+
+## Core Features
+
+### Insights Page
+
+* Displays products with computed attention signals
+* Severity badge (Low / Medium / High)
+* Optional AI-generated explanation
+* “Generate AI insight” per product
+* Bulk generate for visible list (up to 10)
+
+### Async Job Processing
+
+* Jobs stored in database
+* Worker polls queue
+* Retry with exponential backoff
+* Run tracking for grouped operations
+
+### Runs Page
+
+* Lists historical runs
+* Shows product-level success / failure
+* Displays counts and timestamps
+
+### Webhook Handling
+
+* `app/uninstalled`
+* HMAC verification
+* Idempotency via webhook ID
+* Secure cleanup of shop data
+
+---
+
+## Tech Stack
+
+* TypeScript
+* React Router
+* Shopify Polaris
+* Shopify Admin GraphQL API
+* Prisma ORM
+* SQLite (dev)
+* Background worker (tsx)
+* OpenAI API (structured JSON mode)
+
+---
+
+## Architecture Overview
+
+High-level flow:
+
+1. Merchant installs app via OAuth
+2. Products fetched via Admin GraphQL
+3. Signals computed and stored in Prisma
+4. AI insight request enqueues a job
+5. Worker claims job and calls OpenAI
+6. Structured output validated and stored
+7. UI reflects status and explanation
+8. Runs page tracks grouped activity
+9. Webhooks verified and handled securely
+
+---
+
+## How To Run Locally
+
+Requirements:
+
+* Node 18+
+* Shopify Partner account
+* Development store
+* OpenAI API key (optional but required for AI insight generation)
+
+Install dependencies:
+
+```
+npm install
+```
+
+Create environment file:
+
+```
+cp .env.example .env
+```
+
+Add your OpenAI key:
+
+```
+OPENAI_API_KEY=sk-...
+```
+
+Run the app:
+
+Terminal 1:
+
+```
+npm run dev
+```
+
+Terminal 2:
+
+```
+npm run worker
+```
+
+Install the app on your dev store, then navigate to:
+
+Apps → Product Attention Insights → Insights
+
+---
+
+## Design Decisions
+
+### Advisory-Only AI
+
+The app does not modify product descriptions or metadata.
+AI is used for explanation and prioritization only.
+
+Reason: Responsible AI integration and reduced operational risk.
+
+---
+
+### Async Job Queue Instead of Inline AI Calls
+
+AI calls are processed in a background worker.
+
+Reason:
+
+* Avoid blocking requests
+* Enable retries
+* Improve resilience
+* Reflect real-world production patterns
+
+---
+
+### Structured JSON Output
+
+The AI must return:
+
+* summary
+* actionType
+* nextSteps
+* optional caveats
+
+Reason:
+
+* Predictable UI rendering
+* Safer integration
+* Reduced hallucination risk
+
+---
+
+### Hard Scope Constraints
+
+* Max 10 products per batch
+* No storefront theme extensions
+* No analytics dashboards
+* No automated product writes
+
+This keeps the project focused and production-realistic.
+
+---
+
+## What I Would Build Next
+
+With additional time:
+
+* Weighted signal scoring (inventory + performance + age)
+* Configurable thresholds per shop
+* Bulk operational actions
+* Rate limit monitoring
+* Caching layer
+* Multi-tenant scaling strategy
+* Postgres production config
+* Analytics dashboard
+
+---
+
+## Why This Project Exists
+
+This project was built to demonstrate:
+
+* Deep Shopify platform knowledge
+* Async architecture competency
+* Secure webhook handling
+* Responsible AI integration
+* Production-aware design decisions
+
+It is intentionally structured to reflect real-world app architecture rather than a simple demo.
+
+---
