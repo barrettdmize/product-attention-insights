@@ -53,6 +53,77 @@ model ProductInsight {
   createdAt          DateTime             @default(now())
   updatedAt          DateTime             @updatedAt
 
+  // Signal quality (read-only from Admin API)
+  productStatus      String?             // ACTIVE | DRAFT | ARCHIVED
+  hasFeaturedImage   Boolean?
+  inventoryStatus    String?             // OUT_OF_STOCK | LOW | OK | UNKNOWN
+  inventoryAvailable Int?
+  confidenceExplanation String?           // e.g. "Low confidence: missing inventory and image data."
+
+  // AI-generated explanation (advisory only; no product writes)
+  aiExplanation      String?
+  aiActionType       String?              // IMAGERY | PRICING | COPY | MERCHANDISING | SEO | INVENTORY
+  aiConfidence       String?             // Insight confidence: High | Medium | Low
+  aiGeneratedAt      DateTime?
+  aiModel            String?
+  aiStatus           String?             // IDLE | QUEUED | RUNNING | SUCCEEDED | FAILED
+  aiError            String?
+
   @@unique([shop, productId])
+  @@index([shop])
+}
+
+enum InsightJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model InsightJob {
+  id          String           @id @default(cuid())
+  shop        String
+  productId   String
+  runId       String?
+  run         Run?             @relation(fields: [runId], references: [id])
+  status      InsightJobStatus @default(QUEUED)
+  attempts    Int              @default(0)
+  lastError   String?
+  nextRetryAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([shop, status])
+  @@index([runId])
+}
+
+enum RunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model Run {
+  id             String     @id @default(cuid())
+  shop           String
+  status         RunStatus  @default(RUNNING)
+  productsQueued Int       @default(0)
+  succeeded      Int       @default(0)
+  failed         Int       @default(0)
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  jobs InsightJob[]
+
+  @@index([shop])
+}
+
+model WebhookEvent {
+  id         String   @id @default(cuid())
+  webhookId  String   @unique
+  topic      String
+  shop       String
+  receivedAt DateTime @default(now())
+
   @@index([shop])
 }

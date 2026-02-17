@@ -1,17 +1,36 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
-import db from "../db.server";
+import prisma from "../db.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, session, topic } = await authenticate.webhook(request);
-
-  console.log(`Received ${topic} webhook for ${shop}`);
-
-  // Webhook requests can trigger multiple times and after an app has already been uninstalled.
-  // If this webhook already ran, the session may have been deleted previously.
-  if (session) {
-    await db.session.deleteMany({ where: { shop } });
+  const webhookId = request.headers.get("x-shopify-webhook-id");
+  if (webhookId) {
+    const existing = await prisma.webhookEvent.findUnique({
+      where: { webhookId },
+    });
+    if (existing) {
+      return new Response(null, { status: 200 });
+    }
   }
 
-  return new Response();
+  const { shop, session, topic } = await authenticate.webhook(request);
+
+  if (webhookId) {
+    try {
+      await prisma.webhookEvent.create({
+        data: { webhookId, topic, shop },
+      });
+    } catch {
+      return new Response(null, { status: 200 });
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.insightJob.deleteMany({ where: { shop } }),
+    prisma.run.deleteMany({ where: { shop } }),
+    prisma.productInsight.deleteMany({ where: { shop } }),
+    prisma.session.deleteMany({ where: { shop } }),
+  ]);
+
+  return new Response(null, { status: 200 });
 };

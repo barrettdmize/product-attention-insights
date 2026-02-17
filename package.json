@@ -12,6 +12,9 @@
     "start": "react-router-serve ./build/server/index.js",
     "docker-start": "npm run setup && npm run start",
     "setup": "prisma generate && prisma migrate deploy",
+    "worker": "npx tsx scripts/worker.ts",
+    "db:migrate": "prisma migrate deploy",
+    "db:generate": "prisma generate",
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
     "prisma": "prisma",
@@ -43,6 +46,8 @@
   },
   "devDependencies": {
     "@shopify/api-codegen-preset": "^1.2.0",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.2",
     "@shopify/polaris-types": "^1.0.1",
     "@types/eslint": "^9.6.1",
     "@types/node": "^22.18.8",
