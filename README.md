@@ -243,21 +243,6 @@ This keeps the project focused and production-realistic.
 
 ---
 
-## What I Would Build Next
-
-With additional time:
-
-* Weighted signal scoring (inventory + performance + age)
-* Configurable thresholds per shop
-* Bulk operational actions
-* Rate limit monitoring
-* Caching layer
-* Multi-tenant scaling strategy
-* Postgres production config
-* Analytics dashboard
-
----
-
 ## Why This Project Exists
 
 This project was built to demonstrate:
