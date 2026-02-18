@@ -37,6 +37,19 @@ Product Attention Insights is an embedded Shopify Admin app that:
 
 The app is advisory-only and does not modify product data.
 
+## Screenshots
+
+### Insights Dashboard (AI + Confidence Badge)
+
+![Insights Dashboard](docs/screenshots/Insights-dashboard-ai-example.png)
+
+---
+
+### Async Job Worker Running
+
+![Async Worker Running](docs/screenshots/async-job-worker-running.png)
+
+
 ---
 
 ## What This Project Demonstrates
